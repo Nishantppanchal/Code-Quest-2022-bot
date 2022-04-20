@@ -1,0 +1,3 @@
+[console_scripts]
+codequest22 = codequest22:main
+

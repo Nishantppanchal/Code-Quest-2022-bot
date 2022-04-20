@@ -1,0 +1,43 @@
+Metadata-Version: 2.1
+Name: codequest22
+Version: 1.0.0
+Summary: Game for Code Quest 2022
+Home-page: https://github.com/monash-programming-team/codequest22
+Author: Jackson Goerner, Ali Toosi
+Author-email: jgoerner@outlook.com, alitoosi137@gmail.com
+License: MIT
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries :: pygame
+Requires-Python: >=3.6.0
+Description-Content-Type: text/markdown
+Requires-Dist: arcade (==2.6.10)
+Requires-Dist: pyyaml (==5.4.1)
+Requires-Dist: pyqtree (==1.0.0)
+Requires-Dist: numpy
+Requires-Dist: progressbar2
+
+# What is this?
+
+A game for Code Quest 22.
+
+If you are competing, you should have recieved a document containing all the documentation required. Please refer to that.
+
+# Contributing
+
+    pip install -e ./
+
+    codequest22 -h
+
+# Building
+
+    pip install twine
+
+    python setup.py sdist bdist_wheel
+
+    twine upload dist/*
+
+
