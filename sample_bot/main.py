@@ -93,8 +93,7 @@ def handle_events(events):
                 # One of my worker ants just made it back to the Queen! Let's send them back to the food site.
                 requests.append(GoalRequest(ev.ant_id, closest_site))
                 # Additionally, let's update how much energy I've got.
-                my_energy = ev.cur_energy + 30
-                print(f"{my_index} : {ev.cur_energy + 30} set")
+                my_energy = ev.cur_energy
         elif isinstance(ev, ProductionEvent):
             if ev.player_index == my_index:
                 # One of my worker ants just made it to the food site! Let's send them back to the Queen.
@@ -104,7 +103,6 @@ def handle_events(events):
                 # One of my workers just died :(
                 total_ants -= 1
 
-    print(f"{my_index} : {my_energy} before")
     # Can I spawn ants?
     spawned_this_tick = 0
     while (
@@ -118,7 +116,5 @@ def handle_events(events):
         # I will pay the base cost for this ant, so cost=None.
         requests.append(SpawnRequest(AntTypes.WORKER, id=None, color=None, goal=closest_site))
         my_energy -= stats.ants.Worker.COST
-
-    print(f"{my_index} : {my_energy} after")
 
     return requests

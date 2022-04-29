@@ -2,7 +2,7 @@ from dis import dis
 from tkinter.messagebox import NO
 from codequest22.server.ant import AntTypes
 import codequest22.stats as stats
-from codequest22.server.events import DepositEvent, DieEvent, ProductionEvent, ZoneActiveEvent
+from codequest22.server.events import DepositEvent, DieEvent, ProductionEvent, ZoneActiveEvent, SettlerScoreEvent
 from codequest22.server.requests import GoalRequest, SpawnRequest
 from numpy import number
 
@@ -33,6 +33,10 @@ enemy_food_choke_points = []
 worker_dispatch_tick_timer = 0
 waiting_worker_ants = []
 zone_active_ticks = 0
+tick = 0
+hill_scores = [0]*4
+strongest_enemy = 0
+weakest_enemy = 0
 
 def read_map(md, energy_info):
     global map_data, spawns, food, distance, food_sites_sorted, enemy_food_choke_points, distance
@@ -48,7 +52,6 @@ def read_map(md, energy_info):
                 hills.append((x, y))
     # Read map is called after read_index
     bot_start_point = spawns[bot_index]
-    print(f"{bot_index} : {bot_start_point}")
     enemy_start_points = list(filter(lambda point: (point != None and point != spawns[bot_index]), spawns[0:number_of_players-1]))
     # Dijkstra's Algorithm: Find the shortest path from your spawn to each food zone.
     # Step 1: Generate edges - for this we will just use orthogonally connected cells.
@@ -128,7 +131,7 @@ def handle_failed_requests(requests):
     # pass
 
 def handle_events(events):
-    global my_energy, total_ants, worker_ants, worker_dispatch_tick_timer, waiting_worker_ants, distance, zone_active_ticks
+    global my_energy, total_ants, worker_ants, worker_dispatch_tick_timer, waiting_worker_ants, distance, zone_active_ticks, tick, hill_scores, strongest_enemy, weakest_enemy
     requests = []
     spawned_this_tick = 0
 
@@ -137,8 +140,7 @@ def handle_events(events):
             if ev.player_index == bot_index:
                 waiting_worker_ants.append(ev.ant_id)
                 # Additionally, let's update how much energy I've got.
-                my_energy = ev.cur_energy + 30
-                print(f"{bot_index} : {(ev.cur_energy + 30)} set")
+                my_energy = ev.total_energy
         elif isinstance(ev, ProductionEvent):
             if ev.player_index == bot_index:
                 # One of my worker ants just made it to the food site! Let's send them back to the Queen.
@@ -150,24 +152,12 @@ def handle_events(events):
                 
                 if ev.ant_id in waiting_worker_ants:
                     waiting_worker_ants.remove(ev.ant_id)
-        elif isinstance(ev, ZoneActiveEvent): 
-            sorted_points_hill = list(sorted(ev.points, key=lambda prod: (distance[prod])))
-            closest_hill_tile = sorted_points_hill[0]
-            zone_active_ticks = ev.num_ticks - distance[closest_hill_tile]/stats.ants.Settler.SPEED
-            
-            if (zone_active_ticks > 0):    
-                while (
-                    total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
-                    spawned_this_tick < stats.general.MAX_SPAWNS_PER_TICK and
-                    my_energy >= stats.ants.Worker.COST - stats.ants.Settler.COST
-                ):
-                    requests.append(SpawnRequest(AntTypes.SETTLER, id=None, color=None, goal=closest_hill_tile))
-                    spawned_this_tick += 1
-                    total_ants += 1
-                    my_energy -= stats.ants.Settler.COST
-                zone_active_ticks -= 1
-            
-    print(f"{bot_index} : {my_energy} before")
+        elif isinstance(ev, SettlerScoreEvent):
+            hill_scores[ev.player_index] = hill_scores[ev.player_index] + ev.score_amount
+            enemy_hill_scores = hill_scores.copy()
+            del enemy_hill_scores[bot_index]
+            strongest_enemy = hill_scores.index(max(enemy_hill_scores))
+            weakest_enemy = hill_scores.index(min(hill_scores))
     
     if (
         total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
@@ -179,7 +169,6 @@ def handle_events(events):
         spawned_this_tick += 1
         total_ants += 1
         requests.append(SpawnRequest(AntTypes.WORKER, id=None, color=None, goal=food_sites_sorted[0]))
-        worker_dispatch_tick_timer += 1
         my_energy -= stats.ants.Worker.COST
     elif (
         total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
@@ -190,34 +179,22 @@ def handle_events(events):
     ):
         ant_id = waiting_worker_ants.pop(0)
         requests.append(GoalRequest(ant_id, food_sites_sorted[0]))
-        worker_dispatch_tick_timer += 1
-    elif (
-        total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
-        spawned_this_tick < stats.general.MAX_SPAWNS_PER_TICK and
-        my_energy >= stats.ants.Worker.COST and
-        worker_dispatch_tick_timer == 1
-    ): 
-        worker_dispatch_tick_timer += 1
-    elif (
-        total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
-        spawned_this_tick < stats.general.MAX_SPAWNS_PER_TICK and
-        my_energy >= stats.ants.Worker.COST and
-        worker_dispatch_tick_timer == 2
+    worker_dispatch_tick_timer += 1
+    if (
+        worker_dispatch_tick_timer == 3
     ):
         worker_dispatch_tick_timer = 0
     
     if (
         total_ants < stats.general.MAX_ANTS_PER_PLAYER and 
         spawned_this_tick < stats.general.MAX_SPAWNS_PER_TICK and
-        my_energy >= (stats.ants.Fighter.COST*number_of_players + stats.ants.Worker.COST)
+        my_energy >= (stats.ants.Fighter.COST + stats.ants.Worker.COST) and
+        tick
     ): 
-        for point in enemy_food_choke_points:
-            # for point in enemy_food_choke_points:
-            spawned_this_tick += 1
-            total_ants += 1
-            requests.append(SpawnRequest(AntTypes.FIGHTER, id=None, color=None, goal=point[0]))
-            my_energy -= stats.ants.Fighter.COST
-        
-    print(f"{bot_index} : {my_energy} after")
-    
+        spawned_this_tick += 1
+        total_ants += 1
+        requests.append(SpawnRequest(AntTypes.FIGHTER, id=None, color=None, goal=spawns[strongest_enemy]))
+        my_energy -= stats.ants.Fighter.COST
+
+    tick += 1
     return requests
